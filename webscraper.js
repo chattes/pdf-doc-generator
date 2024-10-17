@@ -11,14 +11,17 @@ function askQuestion(query) {
     return new Promise(resolve => rl.question(query, resolve));
 }
 
-async function scrapeWebsite(url, depth = 2) {
+async function scrapeWebsite(url, depth = 5, maxPages = 100) {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
     let content = '';
     let scrapedCount = 0;
+    const visitedUrls = new Set();
 
     async function scrape(currentUrl, currentDepth) {
-        if (currentDepth > depth) return;
+        if (currentDepth > depth || scrapedCount >= maxPages || visitedUrls.has(currentUrl)) return;
+
+        visitedUrls.add(currentUrl);
 
         try {
             await page.goto(currentUrl, { waitUntil: 'networkidle0', timeout: 30000 });
@@ -27,7 +30,7 @@ async function scrapeWebsite(url, depth = 2) {
             scrapedCount++;
             console.log(`Scraped ${scrapedCount} page(s). Current depth: ${currentDepth}`);
 
-            if (currentDepth < depth) {
+            if (currentDepth < depth && scrapedCount < maxPages) {
                 const links = await page.evaluate(() => 
                     Array.from(document.querySelectorAll('a'))
                         .map(a => a.href)
@@ -38,6 +41,7 @@ async function scrapeWebsite(url, depth = 2) {
                 );
 
                 for (const link of links) {
+                    if (scrapedCount >= maxPages) break;
                     await scrape(link, currentDepth + 1);
                 }
             }
@@ -73,9 +77,10 @@ async function main() {
     try {
         const url = await askQuestion('Enter the URL to scrape: ');
         const outputPath = await askQuestion('Enter the output PDF file name (default: output.pdf): ') || 'output.pdf';
+        const maxPages = 100;
 
-        console.log(`Scraping ${url}...`);
-        const content = await scrapeWebsite(url);
+        console.log(`Scraping ${url}... (Max pages: ${maxPages})`);
+        const content = await scrapeWebsite(url, 5, maxPages);
         console.log('Saving content to PDF...');
         await saveToPdf(content, outputPath);
         console.log(`PDF saved to ${outputPath}`);
