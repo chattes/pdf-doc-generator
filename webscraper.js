@@ -11,7 +11,7 @@ function askQuestion(query) {
     return new Promise(resolve => rl.question(query, resolve));
 }
 
-async function scrapeWebsite(url, depth = 1) {
+async function scrapeWebsite(url, depth = 5) {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
     let content = '';
@@ -31,7 +31,10 @@ async function scrapeWebsite(url, depth = 1) {
                 const links = await page.evaluate(() => 
                     Array.from(document.querySelectorAll('a'))
                         .map(a => a.href)
-                        .filter(href => href.startsWith('http'))
+                        .filter(href => 
+                            href.startsWith('http') && 
+                            !href.match(/\.(jpg|jpeg|png|gif|bmp|svg|mp3|mp4|wav|avi|mov|wmv|flv|pdf|doc|docx|xls|xlsx|ppt|pptx)$/i)
+                        )
                 );
 
                 for (const link of links) {
