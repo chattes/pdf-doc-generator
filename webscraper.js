@@ -1,5 +1,15 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs').promises;
+const readline = require('readline');
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
+
+function askQuestion(query) {
+    return new Promise(resolve => rl.question(query, resolve));
+}
 
 async function scrapeWebsite(url, depth = 1) {
     const browser = await puppeteer.launch();
@@ -39,19 +49,15 @@ async function saveToPdf(content, outputPath) {
 }
 
 async function main() {
-    const url = process.argv[2];
-    const outputPath = process.argv[3] || 'output.pdf';
-
-    if (!url) {
-        console.error('Please provide a URL as an argument');
-        process.exit(1);
-    }
+    const url = await askQuestion('Enter the URL to scrape: ');
+    const outputPath = await askQuestion('Enter the output PDF file name (default: output.pdf): ') || 'output.pdf';
 
     console.log(`Scraping ${url}...`);
     const content = await scrapeWebsite(url);
     console.log('Saving content to PDF...');
     await saveToPdf(content, outputPath);
     console.log(`PDF saved to ${outputPath}`);
+    rl.close();
 }
 
 main().catch(console.error);
