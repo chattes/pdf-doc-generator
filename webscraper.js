@@ -11,7 +11,7 @@ function askQuestion(query) {
     return new Promise(resolve => rl.question(query, resolve));
 }
 
-async function scrapeWebsite(url, depth = 5) {
+async function scrapeWebsite(url, depth = 2) {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
     let content = '';
