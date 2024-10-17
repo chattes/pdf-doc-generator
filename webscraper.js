@@ -15,27 +15,39 @@ async function scrapeWebsite(url, depth = 1) {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
     let content = '';
+    let scrapedCount = 0;
 
     async function scrape(currentUrl, currentDepth) {
         if (currentDepth > depth) return;
 
-        await page.goto(currentUrl, { waitUntil: 'networkidle0' });
-        content += await page.evaluate(() => document.body.innerText);
-        content += '\n\n';
+        try {
+            await page.goto(currentUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+            content += await page.evaluate(() => document.body.innerText);
+            content += '\n\n';
+            scrapedCount++;
+            console.log(`Scraped ${scrapedCount} page(s). Current depth: ${currentDepth}`);
 
-        const links = await page.evaluate(() => 
-            Array.from(document.querySelectorAll('a'))
-                .map(a => a.href)
-                .filter(href => href.startsWith('http'))
-        );
+            if (currentDepth < depth) {
+                const links = await page.evaluate(() => 
+                    Array.from(document.querySelectorAll('a'))
+                        .map(a => a.href)
+                        .filter(href => href.startsWith('http'))
+                );
 
-        for (const link of links) {
-            await scrape(link, currentDepth + 1);
+                for (const link of links) {
+                    await scrape(link, currentDepth + 1);
+                }
+            }
+        } catch (error) {
+            console.error(`Error scraping ${currentUrl}:`, error.message);
         }
     }
 
-    await scrape(url, 1);
-    await browser.close();
+    try {
+        await scrape(url, 1);
+    } finally {
+        await browser.close();
+    }
 
     return content;
 }
@@ -43,21 +55,32 @@ async function scrapeWebsite(url, depth = 1) {
 async function saveToPdf(content, outputPath) {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
-    await page.setContent(`<pre>${content}</pre>`);
-    await page.pdf({ path: outputPath, format: 'A4' });
-    await browser.close();
+    try {
+        await page.setContent(`<pre>${content}</pre>`, { timeout: 60000 }); // Increase timeout to 60 seconds
+        await page.pdf({ path: outputPath, format: 'A4', timeout: 60000 }); // Increase timeout to 60 seconds
+    } catch (error) {
+        console.error('Error saving PDF:', error);
+        throw error; // Re-throw the error to be caught in the main function
+    } finally {
+        await browser.close();
+    }
 }
 
 async function main() {
-    const url = await askQuestion('Enter the URL to scrape: ');
-    const outputPath = await askQuestion('Enter the output PDF file name (default: output.pdf): ') || 'output.pdf';
+    try {
+        const url = await askQuestion('Enter the URL to scrape: ');
+        const outputPath = await askQuestion('Enter the output PDF file name (default: output.pdf): ') || 'output.pdf';
 
-    console.log(`Scraping ${url}...`);
-    const content = await scrapeWebsite(url);
-    console.log('Saving content to PDF...');
-    await saveToPdf(content, outputPath);
-    console.log(`PDF saved to ${outputPath}`);
-    rl.close();
+        console.log(`Scraping ${url}...`);
+        const content = await scrapeWebsite(url);
+        console.log('Saving content to PDF...');
+        await saveToPdf(content, outputPath);
+        console.log(`PDF saved to ${outputPath}`);
+    } catch (error) {
+        console.error('An error occurred:', error);
+    } finally {
+        rl.close();
+    }
 }
 
-main().catch(console.error);
+main();
